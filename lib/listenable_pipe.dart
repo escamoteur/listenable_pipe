@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 
 extension ListenablePipe<T> on ValueListenable<T> {
   ValueListenable<TResult> map<TResult>(TResult Function(T) convert) {
-    return PipeValueNotifier<T, TResult>(
+    return MapPipeValueNotifier<T, TResult>(
       convert(this.value),
       this,
       convert,
@@ -14,11 +14,11 @@ extension ListenablePipe<T> on ValueListenable<T> {
   }
 
   ValueListenable<T> where(bool Function(T) selector) {
-    return PipeValueNotifier.where(this.value, this, selector);
+    return WherePipeValueNotifier(this.value, this, selector);
   }
 
   ValueListenable<T> debounce(Duration timeOut) {
-    return PipeValueNotifier.debounce(this.value, this, timeOut);
+    return DebouncedPipeValueNotifier(this.value, this, timeOut);
   }
 
   ListenableSubscription listen(void Function(T) handler) {
@@ -39,51 +39,16 @@ class ListenableSubscription {
   }
 }
 
-class PipeValueNotifier<TIn, TOut> extends ValueNotifier<TOut> {
+abstract class PipeValueNotifier<TIn, TOut> extends ValueNotifier<TOut> {
   final ValueListenable previousInChain;
   TOut Function(TIn) transformation;
   bool Function(TIn) selector;
   VoidCallback internalHandler;
-  Timer debounceTimer;
-  Duration debounceDuration;
 
   PipeValueNotifier(
     TOut initialValue,
     this.previousInChain,
-    this.transformation,
-  ) : super(initialValue) {
-    internalHandler = () {
-      value = transformation(previousInChain.value);
-    };
-    previousInChain.addListener(internalHandler);
-  }
-
-  PipeValueNotifier.where(
-    TOut initialValue,
-    this.previousInChain,
-    this.selector,
-  ) : super(initialValue) {
-    internalHandler = () {
-      if (selector(previousInChain.value)) {
-        value = previousInChain.value;
-      }
-    };
-    previousInChain.addListener(internalHandler);
-  }
-
-  PipeValueNotifier.debounce(
-    TOut initialValue,
-    this.previousInChain,
-    this.debounceDuration,
-  ) : super(initialValue) {
-    internalHandler = () {
-      if (debounceTimer == null) {
-        debounceTimer = Timer(debounceDuration, () => debounceTimer = null);
-        value = previousInChain.value;
-      }
-    };
-    previousInChain.addListener(internalHandler);
-  }
+  ) : super(initialValue);
 
   @override
   void removeListener(VoidCallback listener) {
@@ -97,5 +62,56 @@ class PipeValueNotifier<TIn, TOut> extends ValueNotifier<TOut> {
   void dispose() {
     previousInChain.removeListener(internalHandler);
     super.dispose();
+  }
+}
+
+class MapPipeValueNotifier<TIn, TOut> extends PipeValueNotifier<TIn, TOut> {
+  TOut Function(TIn) transformation;
+
+  MapPipeValueNotifier(
+    TOut initialValue,
+    ValueListenable previousInChain,
+    this.transformation,
+  ) : super(initialValue, previousInChain) {
+    internalHandler = () {
+      value = transformation(previousInChain.value);
+    };
+    previousInChain.addListener(internalHandler);
+  }
+}
+
+class WherePipeValueNotifier<T> extends PipeValueNotifier<T, T> {
+  bool Function(T) selector;
+
+  WherePipeValueNotifier(
+    T initialValue,
+    ValueListenable<T> previousInChain,
+    this.selector,
+  ) : super(initialValue, previousInChain) {
+    internalHandler = () {
+      if (selector(previousInChain.value)) {
+        value = previousInChain.value;
+      }
+    };
+    previousInChain.addListener(internalHandler);
+  }
+}
+
+class DebouncedPipeValueNotifier<T> extends PipeValueNotifier<T, T> {
+  Timer debounceTimer;
+  Duration debounceDuration;
+
+  DebouncedPipeValueNotifier(
+    T initialValue,
+    ValueListenable<T> previousInChain,
+    this.debounceDuration,
+  ) : super(initialValue, previousInChain) {
+    internalHandler = () {
+      if (debounceTimer == null) {
+        debounceTimer = Timer(debounceDuration, () => debounceTimer = null);
+        value = previousInChain.value;
+      }
+    };
+    previousInChain.addListener(internalHandler);
   }
 }
