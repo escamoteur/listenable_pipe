@@ -1,43 +1,6 @@
-library listenable_pipe;
-
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-
-extension ListenablePipe<T> on ValueListenable<T> {
-  ValueListenable<TResult> map<TResult>(TResult Function(T) convert) {
-    return MapPipeValueNotifier<T, TResult>(
-      convert(this.value),
-      this,
-      convert,
-    );
-  }
-
-  ValueListenable<T> where(bool Function(T) selector) {
-    return WherePipeValueNotifier(this.value, this, selector);
-  }
-
-  ValueListenable<T> debounce(Duration timeOut) {
-    return DebouncedPipeValueNotifier(this.value, this, timeOut);
-  }
-
-  ListenableSubscription listen(void Function(T) handler) {
-    final interalHandler = () => handler(this.value);
-    this.addListener(interalHandler);
-    return ListenableSubscription(this, interalHandler);
-  }
-}
-
-class ListenableSubscription {
-  final Listenable source;
-  final VoidCallback handler;
-
-  ListenableSubscription(this.source, this.handler);
-
-  void cancel() {
-    source.removeListener(handler);
-  }
-}
 
 abstract class PipeValueNotifier<TIn, TOut> extends ValueNotifier<TOut> {
   final ValueListenable previousInChain;
@@ -113,5 +76,42 @@ class DebouncedPipeValueNotifier<T> extends PipeValueNotifier<T, T> {
       }
     };
     previousInChain.addListener(internalHandler);
+  }
+}
+
+typedef CombiningFunction2<TIn1, TIn2, TOut> = TOut Function(TIn1, TIn2);
+
+class CombiningPipeValueNotifier<TIn1, TIn2, TOut> extends ValueNotifier<TOut> {
+  final ValueListenable<TIn1> previousInChain1;
+  final ValueListenable<TIn2> previousInChain2;
+  final CombiningFunction2<TIn1, TIn2, TOut> combiner;
+  VoidCallback internalHandler;
+
+  CombiningPipeValueNotifier(
+    TOut initialValue,
+    this.previousInChain1,
+    this.previousInChain2,
+    this.combiner,
+  ) : super(initialValue) {
+    internalHandler =
+        () => value = combiner(previousInChain1.value, previousInChain2.value);
+    previousInChain1.addListener(internalHandler);
+    previousInChain2.addListener(internalHandler);
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    if (!hasListeners) {
+      previousInChain1.removeListener(internalHandler);
+      previousInChain2.removeListener(internalHandler);
+    }
+    super.removeListener(listener);
+  }
+
+  @override
+  void dispose() {
+    previousInChain1.removeListener(internalHandler);
+    previousInChain2.removeListener(internalHandler);
+    super.dispose();
   }
 }
