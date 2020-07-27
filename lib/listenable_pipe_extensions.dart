@@ -20,7 +20,7 @@ extension ListenablePipe<T> on ValueListenable<T> {
     return DebouncedPipeValueNotifier(this.value, this, timeOut);
   }
 
-  ValueListenable<TOut> combineLatest<T, TIn2, TOut>(
+  ValueListenable<TOut> combineLatest<TIn2, TOut>(
       ValueListenable<TIn2> combineWith,
       CombiningFunction2<T, TIn2, TOut> combiner) {
     return CombiningPipeValueNotifier<T, TIn2, TOut>(
@@ -31,20 +31,23 @@ extension ListenablePipe<T> on ValueListenable<T> {
     );
   }
 
-  ListenableSubscription listen(void Function(T) handler) {
-    final interalHandler = () => handler(this.value);
-    this.addListener(interalHandler);
-    return ListenableSubscription(this, interalHandler);
+  ListenableSubscription listen(
+      void Function(T, ListenableSubscription) handler) {
+    final subscription = ListenableSubscription(this);
+    subscription.handler = () => handler(this.value, subscription);
+    this.addListener(subscription.handler);
+    return subscription;
   }
 }
 
 class ListenableSubscription {
-  final Listenable source;
-  final VoidCallback handler;
+  final ValueListenable endOfPipe;
+  VoidCallback handler;
 
-  ListenableSubscription(this.source, this.handler);
+  ListenableSubscription(this.endOfPipe);
 
   void cancel() {
-    source.removeListener(handler);
+    assert(handler != null);
+    endOfPipe.removeListener(handler);
   }
 }

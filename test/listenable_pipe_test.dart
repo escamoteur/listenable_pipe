@@ -30,7 +30,7 @@ void main() {
     final listenable = ValueNotifier<int>(0);
 
     int destValue;
-    final subscription = listenable.listen((x) => destValue = x);
+    final subscription = listenable.listen((x, _) => destValue = x);
 
     listenable.value = 42;
 
@@ -48,7 +48,7 @@ void main() {
 
     final destValues = <int>[];
     final subscription =
-        listenable.where((x) => x.isEven).listen((x) => destValues.add(x));
+        listenable.where((x) => x.isEven).listen((x, _) => destValues.add(x));
 
     listenable.value = 42;
     listenable.value = 43;
@@ -68,9 +68,9 @@ void main() {
     final listenable = ValueNotifier<int>(0);
 
     final destValues = <int>[];
-    final subscription = listenable
+    listenable
         .debounce(const Duration(milliseconds: 500))
-        .listen((x) => destValues.add(x));
+        .listen((x, _) => destValues.add(x));
 
     listenable.value = 42;
     await Future.delayed(const Duration(milliseconds: 100));
@@ -91,22 +91,27 @@ void main() {
 
     final destValues = <StingIntWrapper>[];
     final subscription = listenable1
-        .combineLatest<int, String, StingIntWrapper>(
-            listenable2, (s, i) => StingIntWrapper(s, i))
-        .listen((x) => destValues.add(x));
+        .combineLatest<String, StingIntWrapper>(
+            listenable2, (i, s) => StingIntWrapper(s, i))
+        .listen((x, _) {
+      destValues.add(x);
+    });
 
     listenable1.value = 42;
     listenable1.value = 43;
-    listenable1.value = 44;
+    listenable2.value = 'First';
     listenable1.value = 45;
 
-    expect(destValues, [42, 44]);
+    expect(destValues[0].toString(), 'Start:42');
+    expect(destValues[1].toString(), 'Start:43');
+    expect(destValues[2].toString(), 'First:43');
+    expect(destValues[3].toString(), 'First:45');
 
     subscription.cancel();
 
     listenable1.value = 46;
 
-    expect(destValues.length, 2);
+    expect(destValues.length, 4);
   });
 }
 
@@ -115,4 +120,9 @@ class StingIntWrapper {
   final int i;
 
   StingIntWrapper(this.s, this.i);
+
+  @override
+  String toString() {
+    return '$s:$i';
+  }
 }

@@ -93,8 +93,9 @@ class CombiningPipeValueNotifier<TIn1, TIn2, TOut> extends ValueNotifier<TOut> {
     this.previousInChain2,
     this.combiner,
   ) : super(initialValue) {
-    internalHandler =
-        () => value = combiner(previousInChain1.value, previousInChain2.value);
+    internalHandler = () {
+      return value = combiner(previousInChain1.value, previousInChain2.value);
+    };
     previousInChain1.addListener(internalHandler);
     previousInChain2.addListener(internalHandler);
   }
